@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Create Sales Order{% endblock %}
+{% block content %}
+<form method="post">
+    {% csrf_token %}
+    
+    <!-- Main SalesOrder Form -->
+    {{ form.as_p }}
+
+    <h3>Order Items</h3>
+    {{ formset.management_form }}
+    {% for form in formset %}
+        <div class="formset-form">
+            {{ form.as_p }}
+        </div>
+    {% endfor %}
+
+    <button type="submit">Save Order</button>
+</form>
+{% endblock %}
