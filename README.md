@@ -1,3 +1,24 @@
+# ERP System
+
+## Running the Application
+```
+docker compose up -f compose.yml up --build
+```
+
+Login using admin/admin credentials at http://localhost:8000/accounts/login
+
+## Running Tests
+```bash
+python manage.py test --settings=erp_system.settings.test
+```
+
+## Development Environment
+```bash
+docker compose -f compose.dev.yml up --build
+```
+
+with hotreload
+
 # System Overview
 
 ## Technologies Used
@@ -9,6 +30,10 @@
 - **PostgreSQL**: Database for storing application data.
 - **Docker**: For containerization of applications.
 - **Docker Compose**: To manage multi-container applications.
+
+## Authentication & Authorization
+API is secured using JWT authentication.
+App is secured using Django's built-in authentication system. (Session based)
 
 ## Product & Inventory Management System
 
