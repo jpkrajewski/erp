@@ -1,7 +1,13 @@
 name: Django Tests
 
 on:
+  push:
+    branches:
+      - master
   pull_request:
+    branches:
+      - master
+
 
 permissions: read-all
 
@@ -32,15 +38,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --sync -v
 
-      - name: Set up Database
-        run: |
-          sudo apt-get install -y postgresql
-          sudo service postgresql start
-          psql -c "CREATE DATABASE test_db;" -U postgres
-
       - name: Run Tests
-        env:
-          DJANGO_SETTINGS_MODULE: erp_system.settings.test
         run: |
           poetry run python manage.py migrate
-          poetry run python manage.py test
+          poetry run python manage.py test --settings=erp_system.settings.test
