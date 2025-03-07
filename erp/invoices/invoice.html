@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice {{ invoice.invoice_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            max-width: 800px;
+            margin: auto;
+            background-color: #f9f9f9;
+        }
+        .invoice-header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        .company-info, .customer-info {
+            padding: 15px;
+            margin: 10px;
+            background-color: white;
+            border-radius: 5px;
+        }
+        .details {
+            padding: 15px;
+            margin: 10px;
+            background-color: white;
+            border-radius: 5px;
+        }
+        .details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .details th, .details td {
+            padding: 8px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .totals {
+            margin: 10px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+            text-align: right;
+        }
+        .notes {
+            margin: 10px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="invoice-header">
+        <h1>Invoice</h1>
+        <p>Invoice Number: {{ invoice.invoice_number }}</p>
+        <p>Status: {{ invoice.get_status_display() }}</p>
+    </div>
+
+    <div class="company-info">
+        <h3>Seller Information</h3>
+        <p>{{ invoice.company_name }}</p>
+        <p>{{ invoice.company_address }}</p>
+        <p>Phone: {{ invoice.company_phone }}</p>
+        <p>Email: {{ invoice.company_email }}</p>
+        <p>NIP (Tax ID): {{ invoice.company_nip }}</p>
+    </div>
+
+    <div class="customer-info">
+        <h3>Buyer Information</h3>
+        <p>{{ invoice.customer_name }}</p>
+        <p>{{ invoice.customer_address }}</p>
+        <p>Email: {{ invoice.customer_email }}</p>
+        <p>Phone: {{ invoice.customer_phone }}</p>
+    </div>
+
+    <div class="details">
+        <h3>Invoice Details</h3>
+        <table>
+            <tr>
+                <th>Issued Date</th>
+                <td>{{ invoice.issued_date }}</td>
+            </tr>
+            <tr>
+                <th>Due Date</th>
+                <td>{{ invoice.due_date }}</td>
+            </tr>
+            <tr>
+                <th>Payment Method</th>
+                <td>{{ invoice.get_payment_method_display() }}</td>
+            </tr>
+            <tr>
+                <th>Net Amount</th>
+                <td>{{ invoice.net_amount }}</td>
+            </tr>
+            <tr>
+                <th>VAT Rate</th>
+                <td>{{ invoice.vat_rate }}%</td>
+            </tr>
+            <tr>
+                <th>VAT Amount</th>
+                <td>{{ invoice.vat_amount }}</td>
+            </tr>
+            <tr>
+                <th>Gross Amount</th>
+                <td>{{ invoice.gross_amount }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="totals">
+        <h3>Total Amount</h3>
+        <p>{{ invoice.total_amount }}</p>
+    </div>
+
+    <div class="notes">
+        <h3>Notes</h3>
+        <p>{{ invoice.notes }}</p>
+    </div>
+
+</body>
+</html>

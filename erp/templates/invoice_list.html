@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% block title %}Invoice List{% endblock %}
+{% block content %}
+
+<div class="container mt-3">
+    <div class="mx-auto" style="max-width: 800px;">
+        <h3 class="text-center text-primary mb-3">Invoice List</h3>
+
+        {% if invoices %}
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Invoices</h5>
+                </div>
+                <div class="card-body">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>Invoice Number</th>
+                                <th>Customer</th>
+                                <th>Status</th>
+                                <th>Amount</th>
+                                <th>View</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for invoice in invoices %}
+                                <tr>
+                                    <td>{{ invoice.invoice_number }}</td>
+                                    <td>{{ invoice.customer_name }}</td>
+                                    <td>
+                                        <span class="badge bg-{% if invoice.status == 'PAID' %}success{% elif invoice.status == 'OVERDUE' %}danger{% elif invoice.status == 'PARTIAL' %}warning{% else %}secondary{% endif %}">
+                                            {{ invoice.get_status_display }}
+                                        </span>
+                                    </td>
+                                    <td>${{ invoice.total_amount }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        {% else %}
+            <p class="text-center text-muted">No invoices found.</p>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

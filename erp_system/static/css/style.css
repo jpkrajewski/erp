@@ -1,0 +1,50 @@
+.form-container {
+    margin-top: 50px;
+}
+.form-group label {
+    font-weight: bold;
+}
+.formset-form {
+    margin-bottom: 20px;
+}
+.btn-custom {
+    background-color: #4CAF50;
+    color: white;
+}
+.btn-custom:hover {
+    background-color: #45a049;
+}
+/* Styling for the form input fields */
+input[type="text"], input[type="password"] {
+    width: 100%;                      /* Full width for the input */
+    padding: 12px 15px;               /* Padding for the text inside the input */
+    margin-bottom: 15px;              /* Space between the input fields */
+    font-size: 16px;                  /* Font size for readability */
+    border: 1px solid #ced4da;        /* Light grey border */
+    border-radius: 8px;               /* Rounded corners */
+    background-color: #f8f9fa;        /* Light grey background */
+    color: #333;                      /* Dark text color */
+    transition: all 0.3s ease;        /* Smooth transition effect */
+}
+
+/* Focus state to highlight the field when it’s selected */
+input[type="text"]:focus, input[type="password"]:focus {
+    border-color: #003366;            /* Dark blue border when focused */
+    background-color: #ffffff;        /* White background when focused */
+    box-shadow: 0 0 5px rgba(0, 51, 102, 0.3); /* Subtle blue shadow */
+    outline: none;                    /* Remove default outline */
+}
+
+/* Placeholder styling */
+input[type="text"]::placeholder, input[type="password"]::placeholder {
+    color: #888;                      /* Lighter color for placeholder */
+    font-style: italic;               /* Italic style for placeholder text */
+}
+
+/* Styling for the label */
+label {
+    font-size: 14px;                  /* Font size for label */
+    color: #333;                      /* Dark text color for label */
+    margin-bottom: 5px;               /* Space between label and input */
+    font-weight: 500;                 /* Boldness for clarity */
+}

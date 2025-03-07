@@ -1,7 +1,10 @@
-from django.db import models
-from django.utils import timezone
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from typing import List
+
 from django.contrib.auth.models import User
+from django.db import models, transaction
+from django.utils import timezone
+
 
 # -------------------------
 # 1️⃣ Inventory & Warehousing
@@ -10,9 +13,11 @@ class Warehouse(models.Model):
     name = models.CharField(max_length=255)  # Warehouse Name
     location = models.CharField(max_length=255)  # Address or Factory Section
     capacity = models.PositiveIntegerField()  # Max storage capacity
-    manager = models.CharField(max_length=255, null=True, blank=True)  # Warehouse manager
+    manager = models.CharField(
+        max_length=255, null=True, blank=True
+    )  # Warehouse manager
     contact_email = models.EmailField(null=True, blank=True)  # Contact information
-    contact_phone = models.CharField(max_length=20, null=True, blank=True)
+    contact_phone = models.CharField(max_length=25, null=True, blank=True)
     is_active = models.BooleanField(default=True)  # For future warehouse deactivation
     notes = models.TextField(null=True, blank=True)  # Additional information
     created_at = models.DateTimeField(auto_now_add=True)
@@ -21,52 +26,70 @@ class Warehouse(models.Model):
     def __str__(self):
         return self.name
 
+
 class Product(models.Model):
     PRODUCT_CATEGORIES = [
-        ('RAW', 'Raw Material'),
-        ('WIP', 'Work In Progress'),
-        ('FIN', 'Finished Product'),
-        ('TOOL', 'Tool/Equipment'),
-        ('SPARE', 'Spare Part'),
+        ("RAW", "Raw Material"),
+        ("WIP", "Work In Progress"),
+        ("FIN", "Finished Product"),
+        ("TOOL", "Tool/Equipment"),
+        ("SPARE", "Spare Part"),
     ]
-    
+
     name = models.CharField(max_length=255)
     sku = models.CharField(max_length=50, unique=True)
     description = models.TextField(null=True, blank=True)
-    category = models.CharField(max_length=10, choices=PRODUCT_CATEGORIES, default='FIN')
+    category = models.CharField(
+        max_length=10, choices=PRODUCT_CATEGORIES, default="FIN"
+    )
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    unit_cost = models.DecimalField(
+        max_digits=10, decimal_places=2, null=True, blank=True
+    )
     min_stock_level = models.PositiveIntegerField(default=0)  # For reorder alerts
     weight = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    dimensions = models.CharField(max_length=100, null=True, blank=True)  # e.g., "10x20x30 cm"
-    warehouses = models.ManyToManyField(Warehouse, through='ProductInventory', related_name='products')
+    dimensions = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # e.g., "10x20x30 cm"
+    warehouses = models.ManyToManyField(
+        Warehouse, through="ProductInventory", related_name="products"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.name} ({self.sku})"
-    
+
     def get_total_quantity(self):
         """Get total quantity across all warehouses"""
         return sum(inv.quantity for inv in self.inventory.all())
 
+
 class ProductInventory(models.Model):
     """Junction table for the many-to-many relationship between Product and Warehouse"""
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='inventory')
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name='inventory')
+
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="inventory"
+    )
+    warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.CASCADE, related_name="inventory"
+    )
     quantity = models.PositiveIntegerField(default=0)
-    location_code = models.CharField(max_length=50, null=True, blank=True)  # Aisle-Rack-Shelf code
+    location_code = models.CharField(
+        max_length=50, null=True, blank=True
+    )  # Aisle-Rack-Shelf code
     last_counted = models.DateField(null=True, blank=True)  # For inventory audits
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        unique_together = ['product', 'warehouse']
+        unique_together = ["product", "warehouse"]
         verbose_name_plural = "Product Inventories"
 
     def __str__(self):
         return f"{self.product.name} at {self.warehouse.name}: {self.quantity} units"
+
 
 # -------------------------
 # 2️⃣ Suppliers & Purchase Orders
@@ -75,11 +98,15 @@ class Supplier(models.Model):
     name = models.CharField(max_length=255)
     contact_person = models.CharField(max_length=255)
     email = models.EmailField()
-    phone = models.CharField(max_length=20)
+    phone = models.CharField(max_length=25)
     address = models.TextField()
     website = models.URLField(null=True, blank=True)
-    payment_terms = models.CharField(max_length=100, null=True, blank=True)  # e.g., "Net 30"
-    supplier_rating = models.PositiveSmallIntegerField(null=True, blank=True)  # 1-5 rating
+    payment_terms = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # e.g., "Net 30"
+    supplier_rating = models.PositiveSmallIntegerField(
+        null=True, blank=True
+    )  # 1-5 rating
     is_active = models.BooleanField(default=True)
     notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -87,81 +114,107 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.name
-    
+
     def get_supplied_products(self):
         """Get all products this supplier provides"""
         return Product.objects.filter(supplierproduct__supplier=self)
 
+
 class SupplierProduct(models.Model):
     """Products that a supplier can provide"""
-    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name='products')
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='suppliers')
-    supplier_sku = models.CharField(max_length=50, null=True, blank=True)  # Supplier's product code
+
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.CASCADE, related_name="products"
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="suppliers"
+    )
+    supplier_sku = models.CharField(
+        max_length=50, null=True, blank=True
+    )  # Supplier's product code
     lead_time_days = models.PositiveIntegerField(default=0)  # Typical delivery time
     min_order_quantity = models.PositiveIntegerField(default=1)
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2)
-    is_preferred = models.BooleanField(default=False)  # Preferred supplier for this product
-    
+    is_preferred = models.BooleanField(
+        default=False
+    )  # Preferred supplier for this product
+
     class Meta:
-        unique_together = ['supplier', 'product']
-    
+        unique_together = ["supplier", "product"]
+
     def __str__(self):
         return f"{self.product.name} from {self.supplier.name}"
 
+
 class PurchaseOrderManager(models.Manager):
     def recent(self):
-        return self.filter(order_date__gte=timezone.datetime.today() - timezone.timedelta(days=30))
+        return self.filter(
+            order_date__gte=timezone.datetime.today() - timezone.timedelta(days=30)
+        )
 
     def pending(self):
         return self.filter(status="PENDING")
 
+
 class PurchaseOrder(models.Model):
     objects = PurchaseOrderManager()
-    
+
     STATUS_CHOICES = [
-        ('DRAFT', 'Draft'),
-        ('PENDING', 'Pending Approval'),
-        ('APPROVED', 'Approved'),
-        ('ORDERED', 'Ordered'),
-        ('PARTIAL', 'Partially Received'),
-        ('RECEIVED', 'Received'),
-        ('CANCELLED', 'Cancelled'),
+        ("DRAFT", "Draft"),
+        ("PENDING", "Pending Approval"),
+        ("APPROVED", "Approved"),
+        ("ORDERED", "Ordered"),
+        ("PARTIAL", "Partially Received"),
+        ("RECEIVED", "Received"),
+        ("CANCELLED", "Cancelled"),
     ]
-    
+
     po_number = models.CharField(max_length=50, unique=True)
-    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="purchase_orders")
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE, related_name="purchase_orders")
+    supplier = models.ForeignKey(
+        Supplier, on_delete=models.CASCADE, related_name="purchase_orders"
+    )
+    warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.CASCADE, related_name="purchase_orders"
+    )
     order_date = models.DateField(default=timezone.now)
     expected_delivery = models.DateField()
     actual_delivery = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="DRAFT")
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="DRAFT")
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    payment_status = models.CharField(max_length=20, choices=[
-        ('UNPAID', 'Unpaid'),
-        ('PARTIAL', 'Partially Paid'),
-        ('PAID', 'Paid')
-    ], default='UNPAID')
+    payment_status = models.CharField(
+        max_length=30,
+        choices=[("UNPAID", "Unpaid"), ("PARTIAL", "Partially Paid"), ("PAID", "Paid")],
+        default="UNPAID",
+    )
     notes = models.TextField(null=True, blank=True)
-    created_by = models.CharField(max_length=100, null=True, blank=True)  # User who created PO
+    created_by = models.CharField(
+        max_length=100, null=True, blank=True
+    )  # User who created PO
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.po_number} - {self.supplier.name}"
 
+
 class PurchaseOrderItem(models.Model):
-    purchase_order = models.ForeignKey(PurchaseOrder, on_delete=models.CASCADE, related_name="items")
+    purchase_order = models.ForeignKey(
+        PurchaseOrder, on_delete=models.CASCADE, related_name="items"
+    )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity_ordered = models.PositiveIntegerField()
     quantity_received = models.PositiveIntegerField(default=0)
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
-    expected_delivery = models.DateField(null=True, blank=True)  # Item-specific delivery date
-    
+    expected_delivery = models.DateField(
+        null=True, blank=True
+    )  # Item-specific delivery date
+
     def __str__(self):
         return f"{self.quantity_ordered} x {self.product.name} on {self.purchase_order.po_number}"
-    
+
     def line_total(self):
         return self.quantity_ordered * self.unit_price
+
 
 # -------------------------
 # 3️⃣ Customers & Sales
@@ -170,10 +223,12 @@ class Customer(models.Model):
     name = models.CharField(max_length=255)
     contact_person = models.CharField(max_length=255, null=True, blank=True)
     email = models.EmailField()
-    phone = models.CharField(max_length=20)
+    phone = models.CharField(max_length=25)
     address = models.TextField()
     shipping_address = models.TextField(null=True, blank=True)
-    credit_limit = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    credit_limit = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
     customer_since = models.DateField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
     notes = models.TextField(null=True, blank=True)
@@ -182,41 +237,57 @@ class Customer(models.Model):
 
     def __str__(self):
         return self.name
-    
+
 
 class SalesOrderQuerySet(models.QuerySet):
     def expensive_order(self):
         return self.filter(total_amount__gte=10000)
-    
+
     def with_notes(self):
         return self.filter(notes__isnull=False)
-    
+
 
 class SalesOrderQueryManager(models.Manager):
     def get_queryset(self):
         return SalesOrderQuerySet(self.model, using=self._db)
 
 
+class OrderNumber(models.Model):
+    """Model to track the latest order number."""
+    last_number = models.IntegerField(default=5000)
+
+    def __str__(self):
+        return f"Last order number: {self.last_number}"
+
+    def increment_and_get(self):
+        """Increment the last order number and return the new order number."""
+        self.last_number += 1
+        self.save()
+        return self.last_number
+
+
 class SalesOrder(models.Model):
     objects = SalesOrderQueryManager()
-    
+
     STATUS_CHOICES = [
-        ('DRAFT', 'Draft'),
-        ('CONFIRMED', 'Confirmed'),
-        ('PROCESSING', 'Processing'),
-        ('READY', 'Ready for Shipment'),
-        ('PARTIAL', 'Partially Shipped'),
-        ('SHIPPED', 'Shipped'),
-        ('DELIVERED', 'Delivered'),
-        ('CANCELLED', 'Cancelled'),
+        ("DRAFT", "Draft"),
+        ("CONFIRMED", "Confirmed"),
+        ("PROCESSING", "Processing"),
+        ("READY", "Ready for Shipment"),
+        ("PARTIAL", "Partially Shipped"),
+        ("SHIPPED", "Shipped"),
+        ("DELIVERED", "Delivered"),
+        ("CANCELLED", "Cancelled"),
     ]
-    
+
     order_number = models.CharField(max_length=50, unique=True)
-    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="sales_orders")
+    customer = models.ForeignKey(
+        Customer, on_delete=models.CASCADE, related_name="sales_orders"
+    )
     order_date = models.DateField(default=timezone.now)
     requested_delivery = models.DateField()
     actual_delivery = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="DRAFT")
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="DRAFT")
     shipping_method = models.CharField(max_length=100, null=True, blank=True)
     shipping_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -227,49 +298,144 @@ class SalesOrder(models.Model):
 
     def __str__(self):
         return f"{self.order_number} - {self.customer.name} ({self.status})"
-    
+
     def get_manufacturing_orders(self):
         """Get all manufacturing orders associated with this sales order"""
         return ManufacturingOrder.objects.filter(sales_order_item__sales_order=self)
 
+    def save(self, *args, **kwargs):
+        if not self.order_number:  # If order_number is not set (new order)
+            order_number = self.generate_order_number()
+            self.order_number = order_number
+        super().save(*args, **kwargs)
+
+    def generate_order_number(self):
+        """Generate the next order number in the format SO-0032."""
+        order_number_instance, _ = OrderNumber.objects.get_or_create(id=1)  # We only need one instance
+        next_number = order_number_instance.increment_and_get()
+        return f"SO-{next_number:04d}"  # Zero-padded to ensure it always has 4 digits (SO-0032)
+
+
 class SalesOrderItem(models.Model):
-    sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name="items")
+    sales_order = models.ForeignKey(
+        SalesOrder, on_delete=models.CASCADE, related_name="items"
+    )
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField()
     unit_price = models.DecimalField(max_digits=10, decimal_places=2)
     discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0)
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True)
+    warehouse = models.ForeignKey(
+        Warehouse, on_delete=models.SET_NULL, null=True, blank=True
+    )
     notes = models.TextField(null=True, blank=True)
-    
+
     def __str__(self):
-        return f"{self.quantity} x {self.product.name} on {self.sales_order.order_number}"
-    
+        return (
+            f"{self.quantity} x {self.product.name} on {self.sales_order.order_number}"
+        )
+
     def line_total(self):
         return self.quantity * self.unit_price * (1 - self.discount_percentage / 100)
 
+
+
 class Invoice(models.Model):
-    sales_order = models.ForeignKey(SalesOrder, on_delete=models.CASCADE, related_name="invoices")
-    invoice_number = models.CharField(max_length=50, unique=True)
-    issued_date = models.DateField(default=timezone.now)
-    due_date = models.DateField()
-    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=20, choices=[
+
+    STATUS_CHOICES = [
         ('ISSUED', 'Issued'),
-        ('PARTIAL', 'Partially Paid'),
         ('PAID', 'Paid'),
+        ('PARTIAL', 'Partially Paid'),
         ('OVERDUE', 'Overdue'),
         ('CANCELLED', 'Cancelled'),
-    ], default='ISSUED')
-    notes = models.TextField(null=True, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    
+    ]
+
+    PAYMENT_METHOD_CHOICES = [
+        ('BANK_TRANSFER', 'Bank Transfer'),
+        ('CREDIT_CARD', 'Credit Card'),
+        ('CASH', 'Cash'),
+        ('PAYPAL', 'PayPal'),
+        ('OTHER', 'Other'),
+    ]
+
+    # Basic Company Info (Seller Information)
+    company_name = models.CharField(max_length=255, null=True)
+    company_address = models.CharField(max_length=255, null=True)
+    company_phone = models.CharField(max_length=30, null=True)
+    company_email = models.EmailField(null=True)
+    company_nip = models.CharField(max_length=15, null=True, verbose_name="NIP (Tax ID)")
+
+    # Customer Info (Buyer Information)
+    customer_name = models.CharField(max_length=255, null=True)
+    customer_address = models.CharField(max_length=255, null=True)
+    customer_email = models.EmailField(null=True)
+    customer_phone = models.CharField(max_length=30, null=True)
+
+    # Invoice Details
+    invoice_number = models.CharField(max_length=50, unique=True, null=True)
+    issued_date = models.DateField(default=timezone.now, null=True)
+    due_date = models.DateField(null=True)
+    payment_method = models.CharField(max_length=30, choices=PAYMENT_METHOD_CHOICES, null=True)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True)
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='ISSUED', null=True)
+    notes = models.TextField(null=True)
+
+    # Tax Information
+    net_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True)  # Amount before tax
+    vat_rate = models.DecimalField(max_digits=5, decimal_places=2, null=True)  # VAT rate (e.g., 23%)
+    vat_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True)  # VAT amount
+    gross_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True)  # Total after VAT (net + VAT)
+
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True)
+
+    # Foreign Key relationships
+    sales_order = models.ForeignKey(
+        'SalesOrder', on_delete=models.CASCADE, related_name='invoices', null=True
+    )
+    generated_pdf = models.FileField(upload_to='invoices/', null=True, blank=True)
+
     def __str__(self):
-        return f"{self.invoice_number} for {self.sales_order.order_number}"
+        return f"Invoice {self.invoice_number} for Order {self.sales_order.order_number if self.sales_order else 'N/A'}"
+
+    def save(self, *args, **kwargs):
+        # Calculate VAT and gross amount before saving the invoice
+        self.vat_amount = self.net_amount * (self.vat_rate / 100)
+        self.gross_amount = self.net_amount + self.vat_amount
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = "Invoice"
+        verbose_name_plural = "Invoices"
+
+    @staticmethod
+    def generate_invoice_number():
+        """Generate a unique invoice number."""
+        year = timezone.now().year
+        month = timezone.now().month
+        with transaction.atomic():
+            number = OrderNumber.objects.first().increment_and_get()
+            return f"INV-{year}-{month}/{number}"
+
 
 # -------------------------
 # 4️⃣ Manufacturing & Production
 # -------------------------
+
+
+class WorkstationQuerySet(models.QuerySet):
+    def ready_for_production(self, name: str):
+        return self.filter(status="OPERATIONAL", is_active=True, name__icontains=name)
+
+
+class WorkstationManager(models.Manager):
+    def get_queryset(self):
+        return WorkstationQuerySet(self.model, using=self._db)
+
+    def ready_for_production(self, name: str):
+        return self.get_queryset().ready_for_production(name)
+
+
 class Workstation(models.Model):
     name = models.CharField(max_length=100)
     machine_id = models.CharField(max_length=50, unique=True)
@@ -277,104 +443,143 @@ class Workstation(models.Model):
     description = models.TextField(null=True, blank=True)
     maintenance_schedule = models.CharField(max_length=255, null=True, blank=True)
     last_maintenance = models.DateField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('OPERATIONAL', 'Operational'),
-        ('MAINTENANCE', 'Under Maintenance'),
-        ('BREAKDOWN', 'Breakdown'),
-        ('INACTIVE', 'Inactive'),
-    ], default='OPERATIONAL')
-    capacity_per_hour = models.PositiveIntegerField(null=True, blank=True)  # Production capacity
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("OPERATIONAL", "Operational"),
+            ("MAINTENANCE", "Under Maintenance"),
+            ("BREAKDOWN", "Breakdown"),
+            ("INACTIVE", "Inactive"),
+        ],
+        default="OPERATIONAL",
+    )
+    capacity_per_hour = models.PositiveIntegerField(
+        null=True, blank=True
+    )  # Production capacity
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = WorkstationManager()
+
     def __str__(self):
         return f"{self.name} ({self.machine_id})"
 
+
 class ProcessTemplate(models.Model):
     """Template for manufacturing processes that can be reused"""
+
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
     estimated_time = models.PositiveIntegerField(help_text="Estimated time in minutes")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return self.name
 
+
 class ProcessStep(models.Model):
     """Individual steps in a process template"""
-    process = models.ForeignKey(ProcessTemplate, on_delete=models.CASCADE, related_name='steps')
+
+    process = models.ForeignKey(
+        ProcessTemplate, on_delete=models.CASCADE, related_name="steps"
+    )
     sequence = models.PositiveSmallIntegerField()
     name = models.CharField(max_length=255)
     description = models.TextField()
     workstation_type = models.CharField(max_length=100, null=True, blank=True)
     estimated_time = models.PositiveIntegerField(help_text="Estimated time in minutes")
-    
+
     class Meta:
-        ordering = ['sequence']
-    
+        ordering = ["sequence"]
+
     def __str__(self):
         return f"{self.process.name} - Step {self.sequence}: {self.name}"
 
+
 class BillOfMaterials(models.Model):
     """Bill of Materials for products"""
-    product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name='bom')
-    process_template = models.ForeignKey(ProcessTemplate, on_delete=models.SET_NULL, null=True, blank=True)
+
+    product = models.OneToOneField(
+        Product, on_delete=models.CASCADE, related_name="bom"
+    )
+    process_template = models.ForeignKey(
+        ProcessTemplate, on_delete=models.SET_NULL, null=True, blank=True
+    )
     description = models.TextField(null=True, blank=True)
-    version = models.CharField(max_length=20, default='1.0')
+    version = models.CharField(max_length=30, default="1.0")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         verbose_name_plural = "Bills of Materials"
-    
+
     def __str__(self):
         return f"BOM for {self.product.name} v{self.version}"
 
+
 class BOMItem(models.Model):
     """Components required in a Bill of Materials"""
-    bom = models.ForeignKey(BillOfMaterials, on_delete=models.CASCADE, related_name='items')
-    component = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='used_in')
+
+    bom = models.ForeignKey(
+        BillOfMaterials, on_delete=models.CASCADE, related_name="items"
+    )
+    component = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="used_in"
+    )
     quantity_required = models.DecimalField(max_digits=10, decimal_places=3)
-    unit_of_measure = models.CharField(max_length=20, default='units')
-    step = models.ForeignKey(ProcessStep, on_delete=models.SET_NULL, null=True, blank=True)
+    unit_of_measure = models.CharField(max_length=30, default="units")
+    step = models.ForeignKey(
+        ProcessStep, on_delete=models.SET_NULL, null=True, blank=True
+    )
     notes = models.TextField(null=True, blank=True)
-    
+
     def __str__(self):
         return f"{self.quantity_required} {self.unit_of_measure} of {self.component.name} for {self.bom.product.name}"
 
+
 class ManufacturingOrder(models.Model):
     STATUS_CHOICES = [
-        ('DRAFT', 'Draft'),
-        ('PLANNED', 'Planned'),
-        ('MATERIAL_PENDING', 'Materials Pending'),
-        ('READY', 'Ready to Start'),
-        ('IN_PROGRESS', 'In Progress'),
-        ('ON_HOLD', 'On Hold'),
-        ('COMPLETED', 'Completed'),
-        ('CANCELLED', 'Cancelled'),
+        ("DRAFT", "Draft"),
+        ("PLANNED", "Planned"),
+        ("MATERIAL_PENDING", "Materials Pending"),
+        ("READY", "Ready to Start"),
+        ("IN_PROGRESS", "In Progress"),
+        ("ON_HOLD", "On Hold"),
+        ("COMPLETED", "Completed"),
+        ("CANCELLED", "Cancelled"),
     ]
-    
+
     order_number = models.CharField(max_length=50, unique=True)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="manufacturing_orders")
-    bom_version = models.CharField(max_length=20, null=True, blank=True)
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="manufacturing_orders"
+    )
+    bom_version = models.CharField(max_length=30, null=True, blank=True)
     quantity = models.PositiveIntegerField()
     sales_order_item = models.ForeignKey(
-        SalesOrderItem, 
-        on_delete=models.SET_NULL, 
-        null=True, blank=True, 
-        related_name="manufacturing_orders"
+        SalesOrderItem,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="manufacturing_orders",
     )
-    target_warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, related_name="production_orders")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="DRAFT")
+    target_warehouse = models.ForeignKey(
+        Warehouse,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="production_orders",
+    )
+    status = models.CharField(max_length=30, choices=STATUS_CHOICES, default="DRAFT")
     priority = models.PositiveSmallIntegerField(default=5)  # 1-10 priority scale
     start_date = models.DateField()
     estimated_completion = models.DateField()
     actual_completion = models.DateField(null=True, blank=True)
-    production_cost = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    production_cost = models.DecimalField(
+        max_digits=12, decimal_places=2, null=True, blank=True
+    )
     notes = models.TextField(null=True, blank=True)
     created_by = models.CharField(max_length=100, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -382,46 +587,92 @@ class ManufacturingOrder(models.Model):
 
     def __str__(self):
         return f"MO-{self.order_number} - {self.product.name} ({self.status})"
-    
+
     def units_completed(self):
         """Calculate total units completed so far"""
         return sum(log.units_produced for log in self.logs.all())
-    
+
     def get_sales_order(self):
         """Get related sales order if exists"""
         if self.sales_order_item:
             return self.sales_order_item.sales_order
         return None
 
+
+@dataclass
+class ManufacturingStepInput:
+    name: str
+    description: str
+    workstation: Workstation
+
+
 class ManufacturingStep(models.Model):
     """Individual manufacturing steps for a specific manufacturing order"""
-    manufacturing_order = models.ForeignKey(ManufacturingOrder, on_delete=models.CASCADE, related_name='steps')
-    process_step = models.ForeignKey(ProcessStep, on_delete=models.SET_NULL, null=True, blank=True)
+
+    manufacturing_order = models.ForeignKey(
+        ManufacturingOrder, on_delete=models.CASCADE, related_name="steps"
+    )
+    process_step = models.ForeignKey(
+        ProcessStep, on_delete=models.SET_NULL, null=True, blank=True
+    )
     sequence = models.PositiveSmallIntegerField()
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
-    workstation = models.ForeignKey(Workstation, on_delete=models.SET_NULL, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('PENDING', 'Pending'),
-        ('IN_PROGRESS', 'In Progress'),
-        ('COMPLETED', 'Completed'),
-        ('SKIPPED', 'Skipped'),
-    ], default='PENDING')
+    workstation = models.ForeignKey(
+        Workstation, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("PENDING", "Pending"),
+            ("IN_PROGRESS", "In Progress"),
+            ("COMPLETED", "Completed"),
+            ("SKIPPED", "Skipped"),
+        ],
+        default="PENDING",
+    )
     scheduled_start = models.DateTimeField(null=True, blank=True)
     scheduled_end = models.DateTimeField(null=True, blank=True)
     actual_start = models.DateTimeField(null=True, blank=True)
     actual_end = models.DateTimeField(null=True, blank=True)
-    
+
     class Meta:
-        ordering = ['sequence']
-    
+        ordering = ["sequence"]
+
+    @classmethod
+    def from_list(
+        cls,
+        manufacturing_order: ManufacturingOrder,
+        steps_list: List[ManufacturingStepInput],
+    ) -> List["ManufacturingStep"]:
+        results = []
+        for index, step in enumerate(steps_list, start=1):
+            results.append(
+                ManufacturingStep(
+                    manufacturing_order=manufacturing_order,
+                    sequence=index,
+                    name=step.name,
+                    description=step.description,
+                    workstation=step.workstation,
+                    status="PENDING",
+                )
+            )
+        return results
+
     def __str__(self):
         return f"{self.manufacturing_order.order_number} - Step {self.sequence}: {self.name}"
 
+
 class ProductionLog(models.Model):
-    manufacturing_order = models.ForeignKey(ManufacturingOrder, on_delete=models.CASCADE, related_name="logs")
-    manufacturing_step = models.ForeignKey(ManufacturingStep, on_delete=models.SET_NULL, null=True, blank=True)
-    workstation = models.ForeignKey(Workstation, on_delete=models.SET_NULL, null=True, blank=True)
+    manufacturing_order = models.ForeignKey(
+        ManufacturingOrder, on_delete=models.CASCADE, related_name="logs"
+    )
+    manufacturing_step = models.ForeignKey(
+        ManufacturingStep, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    workstation = models.ForeignKey(
+        Workstation, on_delete=models.SET_NULL, null=True, blank=True
+    )
     date = models.DateField()
     start_time = models.TimeField(null=True, blank=True)
     end_time = models.TimeField(null=True, blank=True)
@@ -432,26 +683,32 @@ class ProductionLog(models.Model):
     remarks = models.TextField(null=True, blank=True)
     created_by = models.CharField(max_length=100, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"Log for {self.manufacturing_order} on {self.date}"
 
+
 class QualityCheck(models.Model):
     """Quality control checks for production"""
-    production_log = models.ForeignKey(ProductionLog, on_delete=models.CASCADE, related_name='quality_checks')
-    check_type = models.CharField(max_length=50)  # e.g., "Visual", "Dimensional", "Functional"
-    result = models.CharField(max_length=20, choices=[
-        ('PASS', 'Pass'),
-        ('FAIL', 'Fail'),
-        ('WARNING', 'Warning')
-    ])
+
+    production_log = models.ForeignKey(
+        ProductionLog, on_delete=models.CASCADE, related_name="quality_checks"
+    )
+    check_type = models.CharField(
+        max_length=50
+    )  # e.g., "Visual", "Dimensional", "Functional"
+    result = models.CharField(
+        max_length=30,
+        choices=[("PASS", "Pass"), ("FAIL", "Fail"), ("WARNING", "Warning")],
+    )
     measurement = models.CharField(max_length=100, null=True, blank=True)
     notes = models.TextField(null=True, blank=True)
     checked_by = models.CharField(max_length=100)
     checked_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"{self.check_type} check for {self.production_log}"
+
 
 # -------------------------
 # 5️⃣ Employee & Shift Management
@@ -461,12 +718,16 @@ class Employee(models.Model):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     email = models.EmailField(null=True, blank=True)
-    phone = models.CharField(max_length=20, null=True, blank=True)
+    phone = models.CharField(max_length=30, null=True, blank=True)
     department = models.CharField(max_length=100)
     role = models.CharField(max_length=100)
-    workstation = models.ForeignKey(Workstation, on_delete=models.SET_NULL, null=True, blank=True)
+    workstation = models.ForeignKey(
+        Workstation, on_delete=models.SET_NULL, null=True, blank=True
+    )
     hire_date = models.DateField(null=True, blank=True)
-    hourly_rate = models.DecimalField(max_digits=8, decimal_places=2, null=True, blank=True)
+    hourly_rate = models.DecimalField(
+        max_digits=8, decimal_places=2, null=True, blank=True
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -474,42 +735,70 @@ class Employee(models.Model):
 
     def __str__(self):
         return f"{self.first_name} {self.last_name} ({self.role})"
-    
+
     def full_name(self):
         return f"{self.first_name} {self.last_name}"
 
+    @classmethod
+    def create_initial_employee_profile(cls, user: User):
+        """Create an initial employee profile for a new user."""
+        return cls.objects.create(
+            user=user,
+            employee_id=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name,
+            email=user.email,
+            is_active=True,
+            department="N/A",
+            role="N/A",
+        )
+
+
+
 class Shift(models.Model):
     SHIFT_TYPES = [
-        ('MORNING', 'Morning (6AM-2PM)'),
-        ('AFTERNOON', 'Afternoon (2PM-10PM)'),
-        ('NIGHT', 'Night (10PM-6AM)'),
-        ('CUSTOM', 'Custom Hours')
+        ("MORNING", "Morning (6AM-2PM)"),
+        ("AFTERNOON", "Afternoon (2PM-10PM)"),
+        ("NIGHT", "Night (10PM-6AM)"),
+        ("CUSTOM", "Custom Hours"),
     ]
-    
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='shifts')
-    manufacturing_order = models.ForeignKey(ManufacturingOrder, on_delete=models.CASCADE, related_name='shifts')
-    manufacturing_step = models.ForeignKey(ManufacturingStep, on_delete=models.SET_NULL, null=True, blank=True)
-    workstation = models.ForeignKey(Workstation, on_delete=models.SET_NULL, null=True, blank=True)
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="shifts"
+    )
+    manufacturing_order = models.ForeignKey(
+        ManufacturingOrder, on_delete=models.CASCADE, related_name="shifts"
+    )
+    manufacturing_step = models.ForeignKey(
+        ManufacturingStep, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    workstation = models.ForeignKey(
+        Workstation, on_delete=models.SET_NULL, null=True, blank=True, related_name="shifts"
+    )
     shift_date = models.DateField()
-    shift_type = models.CharField(max_length=20, choices=SHIFT_TYPES, default='MORNING')
+    shift_type = models.CharField(max_length=30, choices=SHIFT_TYPES, default="MORNING")
     start_time = models.TimeField()
     end_time = models.TimeField()
     break_minutes = models.PositiveIntegerField(default=30)
     overtime_minutes = models.PositiveIntegerField(default=0)
-    status = models.CharField(max_length=20, choices=[
-        ('SCHEDULED', 'Scheduled'),
-        ('IN_PROGRESS', 'In Progress'),
-        ('COMPLETED', 'Completed'),
-        ('ABSENT', 'Absent'),
-        ('CANCELLED', 'Cancelled')
-    ], default='SCHEDULED')
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("SCHEDULED", "Scheduled"),
+            ("IN_PROGRESS", "In Progress"),
+            ("COMPLETED", "Completed"),
+            ("ABSENT", "Absent"),
+            ("CANCELLED", "Cancelled"),
+        ],
+        default="SCHEDULED",
+    )
     notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.employee} on {self.shift_date} ({self.shift_type})"
-    
+
     def shift_hours(self):
         """Calculate total shift hours excluding breaks"""
         start = timezone.datetime.combine(timezone.datetime.today(), self.start_time)
@@ -519,82 +808,122 @@ class Shift(models.Model):
         total_minutes = (end - start).total_seconds() / 60 - self.break_minutes
         return total_minutes / 60
 
+
 # -------------------------
 # 6️⃣ Maintenance & Equipment
 # -------------------------
 class MaintenanceSchedule(models.Model):
     FREQUENCY_CHOICES = [
-        ('DAILY', 'Daily'),
-        ('WEEKLY', 'Weekly'),
-        ('MONTHLY', 'Monthly'),
-        ('QUARTERLY', 'Quarterly'),
-        ('SEMI_ANNUAL', 'Semi-Annual'),
-        ('ANNUAL', 'Annual'),
-        ('USAGE_BASED', 'Based on Usage'),
+        ("DAILY", "Daily"),
+        ("WEEKLY", "Weekly"),
+        ("MONTHLY", "Monthly"),
+        ("QUARTERLY", "Quarterly"),
+        ("SEMI_ANNUAL", "Semi-Annual"),
+        ("ANNUAL", "Annual"),
+        ("USAGE_BASED", "Based on Usage"),
     ]
-    
-    workstation = models.ForeignKey(Workstation, on_delete=models.CASCADE, related_name='maintenance_schedules')
+
+    workstation = models.ForeignKey(
+        Workstation, on_delete=models.CASCADE, related_name="maintenance_schedules"
+    )
     name = models.CharField(max_length=255)
     description = models.TextField(null=True, blank=True)
-    frequency = models.CharField(max_length=20, choices=FREQUENCY_CHOICES)
-    usage_threshold = models.PositiveIntegerField(null=True, blank=True)  # For usage-based maintenance
-    estimated_downtime = models.PositiveIntegerField(help_text="Estimated downtime in minutes")
+    frequency = models.CharField(max_length=30, choices=FREQUENCY_CHOICES)
+    usage_threshold = models.PositiveIntegerField(
+        null=True, blank=True
+    )  # For usage-based maintenance
+    estimated_downtime = models.PositiveIntegerField(
+        help_text="Estimated downtime in minutes"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     def __str__(self):
         return f"{self.name} for {self.workstation.name} ({self.frequency})"
 
+
 class MaintenanceActivity(models.Model):
-    workstation = models.ForeignKey(Workstation, on_delete=models.CASCADE, related_name='maintenance_activities')
-    schedule = models.ForeignKey(MaintenanceSchedule, on_delete=models.SET_NULL, null=True, blank=True)
-    maintenance_type = models.CharField(max_length=50, choices=[
-        ('PREVENTIVE', 'Preventive'),
-        ('CORRECTIVE', 'Corrective'),
-        ('PREDICTIVE', 'Predictive'),
-        ('EMERGENCY', 'Emergency'),
-    ])
+    workstation = models.ForeignKey(
+        Workstation, on_delete=models.CASCADE, related_name="maintenance_activities"
+    )
+    schedule = models.ForeignKey(
+        MaintenanceSchedule, on_delete=models.SET_NULL, null=True, blank=True
+    )
+    maintenance_type = models.CharField(
+        max_length=50,
+        choices=[
+            ("PREVENTIVE", "Preventive"),
+            ("CORRECTIVE", "Corrective"),
+            ("PREDICTIVE", "Predictive"),
+            ("EMERGENCY", "Emergency"),
+        ],
+    )
     description = models.TextField()
     start_datetime = models.DateTimeField()
     end_datetime = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=[
-        ('SCHEDULED', 'Scheduled'),
-        ('IN_PROGRESS', 'In Progress'),
-        ('COMPLETED', 'Completed'),
-        ('CANCELLED', 'Cancelled'),
-    ], default='SCHEDULED')
+    status = models.CharField(
+        max_length=30,
+        choices=[
+            ("SCHEDULED", "Scheduled"),
+            ("IN_PROGRESS", "In Progress"),
+            ("COMPLETED", "Completed"),
+            ("CANCELLED", "Cancelled"),
+        ],
+        default="SCHEDULED",
+    )
     cost = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
-    performed_by = models.ForeignKey(Employee, on_delete=models.SET_NULL, null=True, blank=True)
+    performed_by = models.ForeignKey(
+        Employee, on_delete=models.SET_NULL, null=True, blank=True
+    )
     notes = models.TextField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    
+
     def __str__(self):
         return f"{self.maintenance_type} maintenance for {self.workstation.name} on {self.start_datetime.date()}"
-    
+
     def downtime_hours(self):
         if not self.end_datetime:
             return None
         delta = self.end_datetime - self.start_datetime
         return delta.total_seconds() / 3600
 
+
 # -------------------------
 # 7️⃣ Reporting & Analytics
 # -------------------------
 class ProductionKPI(models.Model):
     """Key Performance Indicators for production"""
+
     date = models.DateField()
-    workstation = models.ForeignKey(Workstation, on_delete=models.CASCADE, related_name='kpis', null=True, blank=True)
-    employee = models.ForeignKey(Employee, on_delete=models.CASCADE, related_name='kpis', null=True, blank=True)
-    manufacturing_order = models.ForeignKey(ManufacturingOrder, on_delete=models.CASCADE)
-    
+    workstation = models.ForeignKey(
+        Workstation,
+        on_delete=models.CASCADE,
+        related_name="kpis",
+        null=True,
+        blank=True,
+    )
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="kpis", null=True, blank=True
+    )
+    manufacturing_order = models.ForeignKey(
+        ManufacturingOrder, on_delete=models.CASCADE
+    )
+
+
 # -------------------------
 # 8️⃣ Currency & Exchange Rates
 # -------------------------
 class CurrencyRate(models.Model):
-    currency_code = models.CharField(max_length=3, unique=True)  # ISO 4217 currency code
-    exchange_rate = models.DecimalField(max_digits=20, decimal_places=10)  # Using high precision for rates
-    last_updated = models.DateTimeField(auto_now=True)  # Automatically updated whenever the record is saved
+    currency_code = models.CharField(
+        max_length=3, unique=True
+    )  # ISO 4217 currency code
+    exchange_rate = models.DecimalField(
+        max_digits=20, decimal_places=10
+    )  # Using high precision for rates
+    last_updated = models.DateTimeField(
+        auto_now=True
+    )  # Automatically updated whenever the record is saved
 
     def __str__(self):
         return f"{self.currency_code}: {self.exchange_rate} with USD"

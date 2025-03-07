@@ -1,20 +1,74 @@
 {% extends 'base.html' %}
 {% block title %}Create Sales Order{% endblock %}
 {% block content %}
-<form method="post">
-    {% csrf_token %}
-    
-    <!-- Main SalesOrder Form -->
-    {{ form.as_p }}
 
-    <h3>Order Items</h3>
-    {{ formset.management_form }}
-    {% for form in formset %}
-        <div class="formset-form">
-            {{ form.as_p }}
-        </div>
-    {% endfor %}
+<div class="container mt-3">
+    <div class="form-container mx-auto" style="max-width: 700px;">
+        <h3 class="text-center text-primary mb-3">Create Sales Order</h3>
 
-    <button type="submit">Save Order</button>
-</form>
+        <form method="post">
+            {% csrf_token %}
+
+            <!-- Sales Order Details -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Sales Order Details</h5>
+                </div>
+                <div class="card-body">
+                    {{ form.as_p }}
+                </div>
+            </div>
+
+            <!-- Order Items Formset -->
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Order Items</h5>
+                </div>
+                <div class="card-body">
+                    {{ formset.management_form }}
+                    {% for form in formset %}
+                        <div class="formset-form">
+                            <div class="card mb-2 border-light shadow-sm" >
+                                <div class="card-body item-form" id="form-container">
+                                    {{ form.as_p }}
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="text-center mt-4">
+                <button id="add-form" class="btn btn-primary px-4">Add item</button>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="text-center mt-4">
+                <button type="submit" class="btn btn-primary px-4">Save Order</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+    let itemForm = document.querySelectorAll(".item-form")
+    let container = document.querySelector("#form-container")
+    let addButton = document.querySelector("#add-form")
+    let totalForms = document.querySelector("#id_items-TOTAL_FORMS")
+
+    let formNum = itemForm.length-1
+        addButton.addEventListener('click', addForm)
+
+        function addForm(e){
+            e.preventDefault()
+
+            let newForm = itemForm[0].cloneNode(true)
+            let formRegex = RegExp(`form-(\\d){1}-`,'g')
+
+            formNum++
+            newForm.innerHTML = newForm.innerHTML.replace(formRegex, `form-${formNum}-`)
+            container.insertAdjacentElement("afterend", newForm);
+            totalForms.setAttribute('value', `${formNum+1}`)
+        }
+
+</script>
+
 {% endblock %}

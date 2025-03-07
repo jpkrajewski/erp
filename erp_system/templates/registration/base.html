@@ -65,16 +65,9 @@
                 <div class="collapse navbar-collapse" id="navbarNav">
                     <ul class="navbar-nav ms-auto">
                         {% if user.is_authenticated %}
-                            <li class="nav-item">
-                                <a class="nav-link" href="{% url 'user-profile' %}">Profile</a>
-                            </li>
-                            <li class="nav-item">
-                                <!-- Logout Form -->
-                                <form action="{% url 'logout' %}" method="post" style="display: inline;">
-                                    {% csrf_token %}
-                                    <button type="submit" class="nav-link btn btn-link" style="color: inherit; text-decoration: none;">Logout</button>
-                                </form>
-                            </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'logout' %}">Logout</a> <!-- Updated to use Django's logout URL -->
+                        </li>
                         {% else %}
                         <!-- You can also add login link here if needed -->
                         <li class="nav-item">

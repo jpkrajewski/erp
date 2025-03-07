@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}Employee Profile - ERP System{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="card shadow-lg p-4">
+        <div class="card-header bg-primary text-white text-center">
+            <h3>Employee Profile</h3>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-4">
+                    <h5>Personal Information</h5>
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <strong>Full Name:</strong> {{ employee.full_name }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Email:</strong> {{ employee.email }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Phone:</strong> {{ employee.phone|default:"N/A" }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Department:</strong> {{ employee.department }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Role:</strong> {{ employee.role }}
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h5>Work Information</h5>
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <strong>Employee ID:</strong> {{ employee.employee_id }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Workstation:</strong>
+                            {% if employee.workstation %}
+                                {{ employee.workstation.name }}
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Hire Date:</strong> {{ employee.hire_date|date:"d M Y" }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Hourly Rate:</strong> ${{ employee.hourly_rate|default:"N/A" }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Status:</strong>
+                            {% if employee.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactive</span>
+                            {% endif %}
+                        </li>
+                    </ul>
+                </div>
+                <div class="col-md-4">
+                    <h5>Account Information</h5>
+                    <ul class="list-group">
+                        <li class="list-group-item">
+                            <strong>Username:</strong> {{ employee.user.username }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Created At:</strong> {{ employee.created_at|date:"d M Y, H:i" }}
+                        </li>
+                        <li class="list-group-item">
+                            <strong>Last Updated:</strong> {{ employee.updated_at|date:"d M Y, H:i" }}
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
