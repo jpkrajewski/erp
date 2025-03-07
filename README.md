@@ -1,4 +1,11 @@
 # ERP System
+![Alt Text](images/login.png)
+![Alt Text](images/sales.png)
+![Alt Text](images/image.png)
+![Alt Text](images/invoice.png)
+![Alt Text](images/apiroot.png)
+
+
 
 ## Running the Application
 ```
